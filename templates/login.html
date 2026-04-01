@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+</head>
+<body>
+
+<h2>Login</h2>
+
+<input type="text" id="username" placeholder="Username"><br><br>
+<input type="password" id="password" placeholder="Password"><br><br>
+
+<button onclick="login()">Login</button>
+
+<p id="result"></p>
+
+<a href="/signup_page">Create Account</a>
+
+<script>
+function login() {
+    fetch("/api/login", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log("LOGIN RESPONSE:", data); // 👈 DEBUG
+
+        if (data.token) {
+            localStorage.setItem("token", data.token);
+            window.location.href = "/dashboard";
+        } else {
+            document.getElementById("result").innerText = data.message;
+        }
+    })
+    .catch(err => {
+        console.error("ERROR:", err);
+    });
+}
+</script>
+
+</body>
+</html>

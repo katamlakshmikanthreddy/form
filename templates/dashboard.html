@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+
+<h2>Dashboard</h2>
+
+<input type="text" id="message" placeholder="Enter 123"><br><br>
+<button onclick="sendData()">Submit</button>
+
+<p id="result"></p>
+
+<br><br>
+<button onclick="logout()">Logout</button>
+
+<script>
+// 🔥 CHECK TOKEN
+const token = localStorage.getItem("token");
+
+if (!token) {
+    alert("Please login first!");
+    window.location.href = "/";
+}
+
+function sendData() {
+    fetch("/api/submit", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+            message: document.getElementById("message").value
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log("API RESPONSE:", data); // 👈 DEBUG
+        document.getElementById("result").innerText =
+            data.response || data.message;
+    })
+    .catch(err => console.error(err));
+}
+
+function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "/";
+}
+</script>
+
+</body>
+</html>
