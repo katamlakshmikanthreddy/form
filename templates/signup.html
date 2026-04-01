@@ -2,38 +2,34 @@
 <html>
 <head>
     <title>Signup</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <div class="container">
+        <h2>Create Account</h2>
+        <input id="username" placeholder="Username">
+        <input id="password" type="password" placeholder="Password">
+        <button onclick="signup()">Signup</button>
+        <p id="result"></p>
+        <a href="/" class="link-btn">Already have an account? Login</a>
+    </div>
 
-<h2>Signup</h2>
-
-<input type="text" id="username" placeholder="Username"><br><br>
-<input type="password" id="password" placeholder="Password"><br><br>
-
-<button onclick="signup()">Signup</button>
-
-<p id="result"></p>
-
-<a href="/">Go to Login</a>
-
-<script>
-function signup() {
-    fetch("/api/signup", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            username: document.getElementById("username").value,
-            password: document.getElementById("password").value
+    <script>
+    function signup() {
+        fetch("/api/signup", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            })
         })
-    })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById("result").innerText = data.message;
-    });
-}
-</script>
-
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('result').innerText = data.message;
+            if(data.message === "Signup successful") setTimeout(() => window.location.href="/", 1500);
+        });
+    }
+    </script>
 </body>
 </html>
