@@ -118,13 +118,19 @@ def login():
 @jwt_required()
 def get_user_info(username):
     user = User.query.filter_by(username=username).first()
-    if not user: return jsonify({"message": "Not found"}), 404
+    if not user: 
+        return jsonify({"message": "Not found"}), 404
+    
     me = User.query.get(get_jwt_identity())
+    
+    # Check if I am following this person
+    is_following = me.is_following(user)
+    
     return jsonify({
         "username": user.username,
         "follower_count": user.followers_list.count(),
         "following_count": user.followed.count(),
-        "is_following": me.is_following(user) if str(me.id) != str(user.id) else None
+        "is_following": is_following # This must be true/false
     })
 
 @app.route('/api/follow/<username>', methods=['POST'])

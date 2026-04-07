@@ -23,33 +23,60 @@
 
     <script>
         const token = localStorage.getItem("token");
+        const myName = localStorage.getItem("username");
         const target = window.location.pathname.split('/').pop();
 
         function follow() {
-            fetch("/api/follow/"+target, {method: "POST", headers: {"Authorization": "Bearer "+token}})
+            fetch("/api/follow/" + target, {
+                method: "POST", 
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
             .then(() => location.reload());
         }
 
-        fetch("/api/user_info/"+target, {headers: {"Authorization": "Bearer "+token}})
-        .then(res => res.json()).then(data => {
-            document.getElementById("uName").innerText = data.username;
-            document.getElementById("fwerL").innerText = data.follower_count + " Followers";
-            document.getElementById("fwerL").href = `/user/${target}/followers`;
-            document.getElementById("fwingL").innerText = data.following_count + " Following";
-            document.getElementById("fwingL").href = `/user/${target}/following`;
-            if(data.is_following === false) document.getElementById("fBtn").style.display = "block";
-        });
-
-        fetch("/api/search?username="+target, {headers: {"Authorization": "Bearer "+token}})
-        .then(res => res.json()).then(data => {
-            const l = document.getElementById("hList");
-            if(data.habits.length === 0) l.innerHTML = "<li>No habits to show.</li>";
-            data.habits.forEach(h => {
-                let li = document.createElement("li");
-                li.innerText = h.name + (h.completed ? " ✅" : " ❌");
-                l.appendChild(li);
+        function loadProfile() {
+            // 1. Fetch User Stats & Follow Status
+            fetch("/api/user_info/" + target, {
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("uName").innerText = data.username;
+                document.getElementById("fwerL").innerText = data.follower_count + " Followers";
+                document.getElementById("fwerL").href = `/user/${target}/followers`;
+                document.getElementById("fwingL").innerText = data.following_count + " Following";
+                document.getElementById("fwingL").href = `/user/${target}/following`;
+                
+                // Show follow button ONLY IF:
+                // - It's not me
+                // - I'm not already following them
+                if (target.toLowerCase() !== myName.toLowerCase() && data.is_following === false) {
+                    document.getElementById("fBtn").style.display = "block";
+                }
             });
-        });
+
+            // 2. Fetch User Habits
+            fetch("/api/search?username=" + target, {
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
+            .then(data => {
+                const l = document.getElementById("hList");
+                l.innerHTML = "";
+                if (!data.habits || data.habits.length === 0) {
+                    l.innerHTML = "<li>No habits to show.</li>";
+                } else {
+                    data.habits.forEach(h => {
+                        let li = document.createElement("li");
+                        li.innerText = h.name + (h.completed ? " ✅" : " ❌");
+                        l.appendChild(li);
+                    });
+                }
+            });
+        }
+
+        window.onload = loadProfile;
     </script>
 </body>
 </html>
