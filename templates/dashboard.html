@@ -2,10 +2,17 @@
 <html>
 <head>
     <title>My Habits</title>
-    <link rel="stylesheet" href="https://d1dvet7fxhgup5.cloudfront.net/static/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container" style="max-width: 500px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <input id="searchInput" placeholder="Search username...">
+            <button onclick="searchUser()" style="width: 80px; margin-top: 10px; background-color: #5f6368;">Search</button>
+        </div>
+
+        <hr>
+
         <h2>My Habits</h2>
         <div style="display: flex; gap: 10px;">
             <input id="habitInput" placeholder="New habit name...">
@@ -21,6 +28,11 @@
     <script>
     const token = localStorage.getItem("token");
     if (!token) window.location.href = "/";
+
+    function searchUser() {
+        const user = document.getElementById("searchInput").value;
+        if (user) window.location.href = `/other/${user}`;
+    }
 
     function loadHabits() {
         fetch("/api/habits", {

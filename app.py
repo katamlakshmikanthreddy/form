@@ -31,7 +31,7 @@ class Habit(db.Model):
 with app.app_context():
     db.create_all()
 
-# -------- FRONTEND -------- #
+# -------- FRONTEND ROUTES -------- #
 
 @app.route('/')
 def home():
@@ -44,6 +44,10 @@ def signup_page():
 @app.route('/dashboard')
 def dashboard():
     return render_template('dashboard.html')
+
+@app.route('/other/<username>')
+def other_user_page(username):
+    return render_template('other.html')
 
 # -------- AUTH API -------- #
 
@@ -119,6 +123,23 @@ def delete_habit(id):
     db.session.delete(habit)
     db.session.commit()
     return jsonify({"message": "Deleted"})
+
+# -------- SEARCH API -------- #
+
+@app.route('/api/search', methods=['GET'])
+@jwt_required()
+def search_habits():
+    username = request.args.get('username')
+    target_user = User.query.filter_by(username=username).first()
+    
+    if not target_user:
+        return jsonify({"message": "User not found"}), 404
+
+    habits = Habit.query.filter_by(user_id=target_user.id).all()
+    return jsonify({
+        "username": target_user.username,
+        "habits": [{"name": h.name, "completed": h.completed} for h in habits]
+    })
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)

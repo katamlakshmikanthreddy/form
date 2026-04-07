@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>View Habits</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 500px;">
+        <h2 id="title">Loading...</h2>
+        
+        <ul id="list"></ul>
+
+        <hr style="margin-top: 20px; border: 0; border-top: 1px solid #eee;">
+        <button onclick="window.location.href='/dashboard'">Back to My Dashboard</button>
+    </div>
+
+    <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/";
+
+    // Get username from the URL path /other/username
+    const pathParts = window.location.pathname.split('/');
+    const targetUser = pathParts[pathParts.length - 1];
+
+    function loadOtherHabits() {
+        fetch(`/api/search?username=${targetUser}`, {
+            headers: { "Authorization": "Bearer " + token }
+        })
+        .then(res => {
+            if (res.status === 404) {
+                document.getElementById("title").innerText = "User Not Found";
+                return null;
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (!data) return;
+            
+            document.getElementById("title").innerText = `${data.username}'s Habits`;
+            const list = document.getElementById("list");
+            list.innerHTML = "";
+            
+            if (data.habits.length === 0) {
+                list.innerHTML = "<li>No habits found for this user.</li>";
+                return;
+            }
+
+            data.habits.forEach(h => {
+                let li = document.createElement("li");
+                li.innerHTML = `
+                    <span style="text-decoration: ${h.completed ? 'line-through' : 'none'}">
+                        ${h.name} ${h.completed ? "✅" : "❌"}
+                    </span>
+                    <span style="font-size: 11px; color: #aaa;">Read Only</span>
+                `;
+                list.appendChild(li);
+            });
+        });
+    }
+
+    window.onload = loadOtherHabits;
+    </script>
+</body>
+</html>

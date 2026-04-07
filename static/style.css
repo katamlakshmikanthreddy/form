@@ -80,3 +80,9 @@ button:hover { background-color: #1557b0; }
 
 .delete-btn { background-color: #d93025; }
 .delete-btn:hover { background-color: #b31412; }
+
+hr {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin: 20px 0;
+}
