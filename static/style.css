@@ -86,3 +86,13 @@ hr {
     border-top: 1px solid #eee;
     margin: 20px 0;
 }
+
+.stat-link {
+    text-decoration: none;
+    color: #1a73e8;
+    font-weight: bold;
+    font-size: 14px;
+}
+.stat-link:hover {
+    text-decoration: underline;
+}

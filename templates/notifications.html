@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Notifications</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h2>Notifications</h2>
+        <ul id="nList"></ul>
+        <button onclick="window.location.href='/dashboard'">Back</button>
+    </div>
+    <script>
+        const token = localStorage.getItem("token");
+        const myName = localStorage.getItem("username");
+        fetch(`/api/social/${myName}/followers`, {headers: {"Authorization": "Bearer "+token}})
+        .then(res => res.json()).then(data => {
+            const l = document.getElementById("nList");
+            if(data.length === 0) l.innerHTML = "<li>No notifications.</li>";
+            data.forEach(u => {
+                let li = document.createElement("li");
+                li.innerText = u.username + " started following you!";
+                l.appendChild(li);
+            });
+        });
+    </script>
+</body>
+</html>

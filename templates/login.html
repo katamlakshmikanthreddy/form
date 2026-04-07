@@ -2,38 +2,32 @@
 <html>
 <head>
     <title>Login</title>
-    <link rel="stylesheet" href="https://d1dvet7fxhgup5.cloudfront.net/static/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
-        <h2>Habit Tracker Login</h2>
-        <input id="username" placeholder="Username">
-        <input id="password" type="password" placeholder="Password">
+        <h2>Habit Tracker</h2>
+        <input id="un" placeholder="Username">
+        <input id="pw" type="password" placeholder="Password">
         <button onclick="login()">Login</button>
-        <p id="result" style="color: red;"></p>
-        <a href="/signup_page" class="link-btn">Don't have an account? Signup</a>
+        <p id="err" style="color: red;"></p>
+        <a href="/signup_page" class="link-btn">Create an account</a>
     </div>
-
     <script>
-    function login() {
-        fetch("/api/login", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                username: document.getElementById('username').value,
-                password: document.getElementById('password').value
-            })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.token) {
-                localStorage.setItem("token", data.token);
-                window.location.href = "/dashboard";
-            } else {
-                document.getElementById('result').innerText = data.message;
-            }
-        });
-    }
+        function login() {
+            const user = document.getElementById('un').value;
+            fetch("/api/login", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({username: user, password: document.getElementById('pw').value})
+            }).then(res => res.json()).then(data => {
+                if(data.token) {
+                    localStorage.setItem("token", data.token);
+                    localStorage.setItem("username", user);
+                    window.location.href = "/dashboard";
+                } else { document.getElementById('err').innerText = data.message; }
+            });
+        }
     </script>
 </body>
 </html>

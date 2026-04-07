@@ -1,35 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Signup</title>
-    <link rel="stylesheet" href="https://d1dvet7fxhgup5.cloudfront.net/static/style.css">
+    <title>Create Account</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
         <h2>Create Account</h2>
-        <input id="username" placeholder="Username">
-        <input id="password" type="password" placeholder="Password">
+        <p style="color: #666; font-size: 14px;">Join the community and track your habits!</p>
+        
+        <input id="un" placeholder="Choose a username">
+        <input id="pw" type="password" placeholder="Create a password">
+        
         <button onclick="signup()">Signup</button>
-        <p id="result"></p>
+        
+        <p id="msg" style="margin-top: 15px; font-size: 14px;"></p>
+        
         <a href="/" class="link-btn">Already have an account? Login</a>
     </div>
 
     <script>
-    function signup() {
-        fetch("/api/signup", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                username: document.getElementById('username').value,
-                password: document.getElementById('password').value
+        function signup() {
+            const user = document.getElementById('un').value.trim();
+            const pass = document.getElementById('pw').value.trim();
+            const msgBox = document.getElementById('msg');
+
+            if (!user || !pass) {
+                msgBox.style.color = "red";
+                msgBox.innerText = "Username and password are required.";
+                return;
+            }
+
+            fetch("/api/signup", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    username: user, 
+                    password: pass
+                })
             })
-        })
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById('result').innerText = data.message;
-            if(data.message === "Signup successful") setTimeout(() => window.location.href="/", 1500);
-        });
-    }
+            .then(res => res.json())
+            .then(data => {
+                if (data.message === "Signup successful") {
+                    msgBox.style.color = "green";
+                    msgBox.innerText = "Account created! Redirecting to login...";
+                    // Wait 1.5 seconds so the user can read the success message
+                    setTimeout(() => {
+                        window.location.href = "/";
+                    }, 1500);
+                } else {
+                    msgBox.style.color = "red";
+                    msgBox.innerText = data.message;
+                }
+            })
+            .catch(err => {
+                msgBox.style.color = "red";
+                msgBox.innerText = "An error occurred. Please try again.";
+            });
+        }
     </script>
 </body>
 </html>

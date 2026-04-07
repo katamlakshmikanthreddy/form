@@ -1,64 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>View Habits</title>
+    <title>User Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container" style="max-width: 500px;">
-        <h2 id="title">Loading...</h2>
+        <h2 id="uName">Loading...</h2>
         
-        <ul id="list"></ul>
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 15px;">
+            <a href="#" id="fwerL" class="stat-link">0 Followers</a>
+            <a href="#" id="fwingL" class="stat-link">0 Following</a>
+        </div>
 
-        <hr style="margin-top: 20px; border: 0; border-top: 1px solid #eee;">
-        <button onclick="window.location.href='/dashboard'">Back to My Dashboard</button>
+        <button id="fBtn" onclick="follow()" style="background: #34a853; display: none; margin-bottom: 15px;">Follow User</button>
+        
+        <hr>
+        <h3>Public Habits</h3>
+        <ul id="hList"></ul>
+        <button onclick="window.location.href='/dashboard'">Back Home</button>
     </div>
 
     <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "/";
+        const token = localStorage.getItem("token");
+        const target = window.location.pathname.split('/').pop();
 
-    // Get username from the URL path /other/username
-    const pathParts = window.location.pathname.split('/');
-    const targetUser = pathParts[pathParts.length - 1];
+        function follow() {
+            fetch("/api/follow/"+target, {method: "POST", headers: {"Authorization": "Bearer "+token}})
+            .then(() => location.reload());
+        }
 
-    function loadOtherHabits() {
-        fetch(`/api/search?username=${targetUser}`, {
-            headers: { "Authorization": "Bearer " + token }
-        })
-        .then(res => {
-            if (res.status === 404) {
-                document.getElementById("title").innerText = "User Not Found";
-                return null;
-            }
-            return res.json();
-        })
-        .then(data => {
-            if (!data) return;
-            
-            document.getElementById("title").innerText = `${data.username}'s Habits`;
-            const list = document.getElementById("list");
-            list.innerHTML = "";
-            
-            if (data.habits.length === 0) {
-                list.innerHTML = "<li>No habits found for this user.</li>";
-                return;
-            }
+        fetch("/api/user_info/"+target, {headers: {"Authorization": "Bearer "+token}})
+        .then(res => res.json()).then(data => {
+            document.getElementById("uName").innerText = data.username;
+            document.getElementById("fwerL").innerText = data.follower_count + " Followers";
+            document.getElementById("fwerL").href = `/user/${target}/followers`;
+            document.getElementById("fwingL").innerText = data.following_count + " Following";
+            document.getElementById("fwingL").href = `/user/${target}/following`;
+            if(data.is_following === false) document.getElementById("fBtn").style.display = "block";
+        });
 
+        fetch("/api/search?username="+target, {headers: {"Authorization": "Bearer "+token}})
+        .then(res => res.json()).then(data => {
+            const l = document.getElementById("hList");
+            if(data.habits.length === 0) l.innerHTML = "<li>No habits to show.</li>";
             data.habits.forEach(h => {
                 let li = document.createElement("li");
-                li.innerHTML = `
-                    <span style="text-decoration: ${h.completed ? 'line-through' : 'none'}">
-                        ${h.name} ${h.completed ? "✅" : "❌"}
-                    </span>
-                    <span style="font-size: 11px; color: #aaa;">Read Only</span>
-                `;
-                list.appendChild(li);
+                li.innerText = h.name + (h.completed ? " ✅" : " ❌");
+                l.appendChild(li);
             });
         });
-    }
-
-    window.onload = loadOtherHabits;
     </script>
 </body>
 </html>

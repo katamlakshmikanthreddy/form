@@ -1,100 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>My Habits</title>
+    <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container" style="max-width: 500px;">
-        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <input id="searchInput" placeholder="Search username...">
-            <button onclick="searchUser()" style="width: 80px; margin-top: 10px; background-color: #5f6368;">Search</button>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="dispUser">Dashboard</h2>
+            <button onclick="window.location.href='/notifications'" style="width: auto; background: #fb923c; padding: 5px 10px;">🔔 Notifications</button>
         </div>
-
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px;">
+            <a href="#" id="fwerL" class="stat-link">0 Followers</a>
+            <a href="#" id="fwingL" class="stat-link">0 Following</a>
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <input id="sIn" placeholder="Search user...">
+            <button onclick="window.location.href='/other/'+document.getElementById('sIn').value" style="width: 80px; margin-top:10px;">Search</button>
+        </div>
         <hr>
-
-        <h2>My Habits</h2>
+        <h3>My Habits</h3>
         <div style="display: flex; gap: 10px;">
-            <input id="habitInput" placeholder="New habit name...">
-            <button onclick="addHabit()" style="width: 80px; margin-top: 10px;">Add</button>
+            <input id="hIn" placeholder="New habit name...">
+            <button onclick="addH()" style="width: 80px; margin-top:10px;">Add</button>
         </div>
-
         <ul id="list"></ul>
-
-        <hr style="margin-top: 20px; border: 0; border-top: 1px solid #eee;">
-        <button onclick="logout()" class="delete-btn">Logout</button>
+        <button onclick="localStorage.clear(); window.location.href='/'" class="delete-btn">Logout</button>
     </div>
-
     <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "/";
+        const token = localStorage.getItem("token");
+        const myName = localStorage.getItem("username");
+        if(!token || !myName) window.location.href = "/";
 
-    function searchUser() {
-        const user = document.getElementById("searchInput").value;
-        if (user) window.location.href = `/other/${user}`;
-    }
+        function addH() {
+            const val = document.getElementById("hIn").value.trim();
+            if(!val) return;
+            fetch("/api/habits", {
+                method: "POST",
+                headers: {"Content-Type": "application/json", "Authorization": "Bearer "+token},
+                body: JSON.stringify({name: val})
+            }).then(() => { document.getElementById("hIn").value = ""; load(); });
+        }
 
-    function loadHabits() {
-        fetch("/api/habits", {
-            headers: { "Authorization": "Bearer " + token }
-        })
-        .then(res => res.status === 401 ? logout() : res.json())
-        .then(data => {
-            const list = document.getElementById("list");
-            list.innerHTML = "";
-            if (!data || data.length === 0) {
-                list.innerHTML = "<li>No habits yet!</li>";
-                return;
-            }
-            data.forEach(h => {
-                let li = document.createElement("li");
-                li.innerHTML = `
-                    <span style="text-decoration: ${h.completed ? 'line-through' : 'none'}">
-                        ${h.name} ${h.completed ? "✅" : "❌"}
-                    </span>
-                    <div class="item-actions">
-                        <button onclick="toggle(${h.id})">Toggle</button>
-                        <button class="delete-btn" onclick="deleteHabit(${h.id})">Delete</button>
-                    </div>
-                `;
-                list.appendChild(li);
+        function toggleH(id) {
+            fetch("/api/habits/"+id, {method: "PUT", headers: {"Authorization": "Bearer "+token}}).then(() => load());
+        }
+
+        function deleteH(id) {
+            fetch("/api/habits/"+id, {method: "DELETE", headers: {"Authorization": "Bearer "+token}}).then(() => load());
+        }
+
+        function load() {
+            document.getElementById("dispUser").innerText = myName;
+            fetch("/api/user_info/"+myName, {headers: {"Authorization": "Bearer "+token}})
+            .then(res => res.json()).then(data => {
+                document.getElementById("fwerL").innerText = data.follower_count + " Followers";
+                document.getElementById("fwerL").href = `/user/${myName}/followers`;
+                document.getElementById("fwingL").innerText = data.following_count + " Following";
+                document.getElementById("fwingL").href = `/user/${myName}/following`;
             });
-        });
-    }
-
-    function addHabit() {
-        const val = document.getElementById("habitInput").value;
-        if(!val) return;
-        fetch("/api/habits", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-            body: JSON.stringify({ name: val })
-        }).then(() => {
-            document.getElementById("habitInput").value = "";
-            loadHabits();
-        });
-    }
-
-    function toggle(id) {
-        fetch("/api/habits/" + id, {
-            method: "PUT",
-            headers: { "Authorization": "Bearer " + token }
-        }).then(() => loadHabits());
-    }
-
-    function deleteHabit(id) {
-        fetch("/api/habits/" + id, {
-            method: "DELETE",
-            headers: { "Authorization": "Bearer " + token }
-        }).then(() => loadHabits());
-    }
-
-    function logout() {
-        localStorage.removeItem("token");
-        window.location.href = "/";
-    }
-
-    window.onload = loadHabits;
+            fetch("/api/habits", {headers: {"Authorization": "Bearer "+token}})
+            .then(res => res.json()).then(data => {
+                const l = document.getElementById("list");
+                l.innerHTML = "";
+                data.forEach(h => {
+                    let li = document.createElement("li");
+                    li.innerHTML = `
+                        <span style="text-decoration: ${h.completed ? 'line-through' : 'none'}">${h.name}</span>
+                        <div class="item-actions">
+                            <button onclick="toggleH(${h.id})">Toggle</button>
+                            <button class="delete-btn" onclick="deleteH(${h.id})">Delete</button>
+                        </div>
+                    `;
+                    l.appendChild(li);
+                });
+            });
+        }
+        window.onload = load;
     </script>
 </body>
 </html>
