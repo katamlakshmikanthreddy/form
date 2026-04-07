@@ -11,20 +11,25 @@
         <button onclick="history.back()">Back</button>
     </div>
     <script>
-        const path = window.location.pathname.split('/');
-        const type = path.pop(); 
-        const user = path[path.length - 1];
+        const token = localStorage.getItem("token"), myName = localStorage.getItem("username");
+        const path = window.location.pathname.split('/'), type = path.pop(), user = path[path.length - 1];
         document.getElementById("hdr").innerText = user + "'s " + type;
-
-        fetch(`/api/social/${user}/${type}`, {headers: {"Authorization": "Bearer "+localStorage.getItem("token")}})
+        fetch(`/api/social/${user}/${type}`, {headers: {"Authorization": "Bearer "+token}})
         .then(res => res.json()).then(data => {
             const l = document.getElementById("uList");
-            if(data.length === 0) l.innerHTML = "<li>No users found.</li>";
             data.forEach(u => {
                 let li = document.createElement("li");
-                li.innerText = u.username;
-                li.style.cursor = "pointer";
-                li.onclick = () => window.location.href = "/other/"+u.username;
+                li.innerHTML = `<span onclick="window.location.href='/other/${u.username}'" style="cursor:pointer">${u.username}</span>`;
+                if(user.toLowerCase() === myName.toLowerCase()){
+                    let btn = document.createElement("button");
+                    btn.innerText = "Remove"; btn.style.width = "auto"; btn.style.background = "#d93025";
+                    btn.onclick = () => {
+                        const ep = type === 'followers' ? 'remove_follower' : 'unfollow';
+                        fetch(`/api/${ep}/${u.username}`, {method:"POST", headers:{"Authorization":"Bearer "+token}})
+                        .then(() => location.reload());
+                    };
+                    li.appendChild(btn);
+                }
                 l.appendChild(li);
             });
         });

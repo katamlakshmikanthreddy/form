@@ -7,22 +7,68 @@
 <body>
     <div class="container">
         <h2>Notifications</h2>
+        <p style="font-size: 14px; color: #666; margin-bottom: 20px;">People following you</p>
         <ul id="nList"></ul>
-        <button onclick="window.location.href='/dashboard'">Back</button>
+        <button onclick="window.location.href='/dashboard'">Back to Dashboard</button>
     </div>
+
     <script>
         const token = localStorage.getItem("token");
         const myName = localStorage.getItem("username");
-        fetch(`/api/social/${myName}/followers`, {headers: {"Authorization": "Bearer "+token}})
-        .then(res => res.json()).then(data => {
-            const l = document.getElementById("nList");
-            if(data.length === 0) l.innerHTML = "<li>No notifications.</li>";
-            data.forEach(u => {
-                let li = document.createElement("li");
-                li.innerText = u.username + " started following you!";
-                l.appendChild(li);
+
+        function removeFollower(targetUser) {
+            if(!confirm(`Remove ${targetUser} from your followers?`)) return;
+            
+            fetch(`/api/remove_follower/${targetUser}`, {
+                method: "POST",
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
+            .then(data => {
+                loadNotifications(); // Refresh the list
             });
-        });
+        }
+
+        function loadNotifications() {
+            const list = document.getElementById("nList");
+            
+            fetch(`/api/social/${myName}/followers`, {
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
+            .then(data => {
+                list.innerHTML = "";
+                if (data.length === 0) {
+                    list.innerHTML = "<li style='justify-content: center; color: #888;'>No new followers.</li>";
+                    return;
+                }
+
+                data.forEach(u => {
+                    let li = document.createElement("li");
+                    li.style.display = "flex";
+                    li.style.justifyContent = "space-between";
+                    li.style.alignItems = "center";
+                    li.style.padding = "15px";
+
+                    li.innerHTML = `
+                        <div>
+                            <strong style="color: #1a73e8; cursor: pointer;" onclick="window.location.href='/other/${u.username}'">${u.username}</strong>
+                            <div style="font-size: 12px; color: #666;">is following you</div>
+                        </div>
+                        <button onclick="removeFollower('${u.username}')" 
+                                style="width: auto; margin: 0; padding: 5px 10px; background: #5f6368; font-size: 11px;">
+                            Remove
+                        </button>
+                    `;
+                    list.appendChild(li);
+                });
+            })
+            .catch(err => {
+                list.innerHTML = "<li style='color: red;'>Error loading notifications.</li>";
+            });
+        }
+
+        window.onload = loadNotifications;
     </script>
 </body>
 </html>

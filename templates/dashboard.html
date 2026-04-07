@@ -10,13 +10,24 @@
             <h2 id="dispUser">Dashboard</h2>
             <button onclick="window.location.href='/notifications'" style="width: auto; background: #fb923c; padding: 5px 10px;">🔔 Notifications</button>
         </div>
+
+        <div style="margin: 10px 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px;">
+            <span>Public</span>
+            <label class="switch">
+                <input type="checkbox" id="privacyToggle" onchange="updatePrivacy()">
+                <span class="slider"></span>
+            </label>
+            <span>Private</span>
+        </div>
+
         <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px;">
             <a href="#" id="fwerL" class="stat-link">0 Followers</a>
             <a href="#" id="fwingL" class="stat-link">0 Following</a>
         </div>
+
         <div style="display: flex; gap: 5px;">
             <input id="sIn" placeholder="Search user...">
-            <button onclick="window.location.href='/other/'+document.getElementById('sIn').value" style="width: 80px; margin-top:10px;">Search</button>
+            <button onclick="doSearch()" style="width: 80px; margin-top:10px;">Search</button>
         </div>
         <hr>
         <h3>My Habits</h3>
@@ -27,10 +38,25 @@
         <ul id="list"></ul>
         <button onclick="localStorage.clear(); window.location.href='/'" class="delete-btn">Logout</button>
     </div>
+
     <script>
         const token = localStorage.getItem("token");
         const myName = localStorage.getItem("username");
         if(!token || !myName) window.location.href = "/";
+
+        function doSearch() {
+            const user = document.getElementById('sIn').value.trim();
+            if(!user) return alert("Please enter a username");
+            window.location.href = '/other/' + user;
+        }
+
+        function updatePrivacy() {
+            fetch("/api/user/privacy", {
+                method: "POST",
+                headers: {"Content-Type": "application/json", "Authorization": "Bearer "+token},
+                body: JSON.stringify({is_private: document.getElementById("privacyToggle").checked})
+            });
+        }
 
         function addH() {
             const val = document.getElementById("hIn").value.trim();
@@ -54,11 +80,13 @@
             document.getElementById("dispUser").innerText = myName;
             fetch("/api/user_info/"+myName, {headers: {"Authorization": "Bearer "+token}})
             .then(res => res.json()).then(data => {
+                document.getElementById("privacyToggle").checked = data.is_private;
                 document.getElementById("fwerL").innerText = data.follower_count + " Followers";
                 document.getElementById("fwerL").href = `/user/${myName}/followers`;
                 document.getElementById("fwingL").innerText = data.following_count + " Following";
                 document.getElementById("fwingL").href = `/user/${myName}/following`;
             });
+
             fetch("/api/habits", {headers: {"Authorization": "Bearer "+token}})
             .then(res => res.json()).then(data => {
                 const l = document.getElementById("list");

@@ -7,66 +7,45 @@
 <body>
     <div class="container" style="max-width: 500px;">
         <h2 id="uName">Loading...</h2>
-        
         <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 15px;">
             <a href="#" id="fwerL" class="stat-link">0 Followers</a>
             <a href="#" id="fwingL" class="stat-link">0 Following</a>
         </div>
-
-        <button id="fBtn" onclick="follow()" style="background: #34a853; display: none; margin-bottom: 15px;">Follow User</button>
-        
+        <div id="btnArea" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+            <button id="fBtn" onclick="act('follow')" style="background:#34a853; display:none;">Follow</button>
+            <button id="unfBtn" onclick="act('unfollow')" style="background:#d93025; display:none;">Unfollow</button>
+            <button id="remBtn" onclick="act('remove_follower')" style="background:#5f6368; display:none;">Remove Follower</button>
+        </div>
         <hr>
-        <h3>Public Habits</h3>
+        <h3>Habits</h3>
         <ul id="hList"></ul>
         <button onclick="window.location.href='/dashboard'">Back Home</button>
     </div>
-
     <script>
-        const token = localStorage.getItem("token");
-        const myName = localStorage.getItem("username");
+        const token = localStorage.getItem("token"), myName = localStorage.getItem("username");
         const target = window.location.pathname.split('/').pop();
-
-        function follow() {
-            fetch("/api/follow/" + target, {
-                method: "POST", 
-                headers: {"Authorization": "Bearer " + token}
-            })
-            .then(res => res.json())
+        function act(type) {
+            fetch(`/api/${type}/${target}`, {method:"POST", headers:{"Authorization":"Bearer "+token}})
             .then(() => location.reload());
         }
-
-        function loadProfile() {
-            // 1. Fetch User Stats & Follow Status
-            fetch("/api/user_info/" + target, {
-                headers: {"Authorization": "Bearer " + token}
-            })
-            .then(res => res.json())
-            .then(data => {
+        function load() {
+            fetch("/api/user_info/"+target, {headers:{"Authorization":"Bearer "+token}})
+            .then(res => res.json()).then(data => {
                 document.getElementById("uName").innerText = data.username;
-                document.getElementById("fwerL").innerText = data.follower_count + " Followers";
                 document.getElementById("fwerL").href = `/user/${target}/followers`;
-                document.getElementById("fwingL").innerText = data.following_count + " Following";
                 document.getElementById("fwingL").href = `/user/${target}/following`;
-                
-                // Show follow button ONLY IF:
-                // - It's not me
-                // - I'm not already following them
-                if (target.toLowerCase() !== myName.toLowerCase() && data.is_following === false) {
-                    document.getElementById("fBtn").style.display = "block";
+                if(target.toLowerCase() !== myName.toLowerCase()) {
+                    if(data.is_following) document.getElementById("unfBtn").style.display = "block";
+                    else document.getElementById("fBtn").style.display = "block";
+                    if(data.follows_me) document.getElementById("remBtn").style.display = "block";
                 }
             });
-
-            // 2. Fetch User Habits
-            fetch("/api/search?username=" + target, {
-                headers: {"Authorization": "Bearer " + token}
-            })
-            .then(res => res.json())
-            .then(data => {
+            fetch("/api/search?username="+target, {headers:{"Authorization":"Bearer "+token}})
+            .then(res => res.json()).then(data => {
                 const l = document.getElementById("hList");
-                l.innerHTML = "";
-                if (!data.habits || data.habits.length === 0) {
-                    l.innerHTML = "<li>No habits to show.</li>";
-                } else {
+                if(data.message === "Private") l.innerHTML = "<li style='text-align:center; background:#eee;'>🔒 Private Account</li>";
+                else {
+                    l.innerHTML = data.habits.length ? "" : "<li>No habits.</li>";
                     data.habits.forEach(h => {
                         let li = document.createElement("li");
                         li.innerText = h.name + (h.completed ? " ✅" : " ❌");
@@ -75,8 +54,7 @@
                 }
             });
         }
-
-        window.onload = loadProfile;
+        window.onload = load;
     </script>
 </body>
 </html>
