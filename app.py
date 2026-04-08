@@ -19,6 +19,11 @@ followers = db.Table('followers',
     db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
 )
 
+group_members = db.Table('group_members',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('group_id', db.Integer, db.ForeignKey('group.id'))
+)
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
@@ -38,10 +43,18 @@ class User(db.Model):
     def is_following(self, user):
         return self.followed.filter(followers.c.followed_id == user.id).count() > 0
 
+class Group(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    # Ensure this backref matches what you call in the API
+    members = db.relationship('User', secondary=group_members, backref=db.backref('groups_list', lazy='dynamic'))
+
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    sender_name = db.Column(db.String(100))
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True)
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
@@ -55,7 +68,7 @@ class Reminder(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     habit_name = db.Column(db.String(200))
-    status = db.Column(db.String(50), default='pending') 
+    status = db.Column(db.String(50), default='pending')
 
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -81,12 +94,20 @@ def followers_view(username): return render_template('followers.html')
 def following_view(username): return render_template('following.html')
 @app.route('/notifications')
 def notifications_page(): return render_template('notifications.html')
+
+# Chat & Group Pages
 @app.route('/chats')
 def chats_page(): return render_template('chats.html')
 @app.route('/chat/<username>')
 def chat_view(username): return render_template('chat.html')
 @app.route('/new_chat')
 def new_chat_page(): return render_template('new_chat.html')
+@app.route('/groups_page')
+def groups_page(): return render_template('groups.html')
+@app.route('/group/<int:gid>')
+def group_view(gid): return render_template('group.html')
+@app.route('/new_group')
+def new_group_page(): return render_template('new_group.html')
 
 # -------- API -------- #
 @app.route('/api/signup', methods=['POST'])
@@ -121,7 +142,7 @@ def get_user_info(username):
         "is_private": user.is_private
     })
 
-# --- CHAT API ---
+# --- DM API ---
 @app.route('/api/mutuals', methods=['GET'])
 @jwt_required()
 def get_mutuals():
@@ -134,17 +155,14 @@ def get_mutuals():
 @jwt_required()
 def get_chat_summary():
     uid = int(get_jwt_identity())
-    msgs = Message.query.filter((Message.sender_id == uid) | (Message.recipient_id == uid)).order_by(Message.timestamp.desc()).all()
+    msgs = Message.query.filter((Message.sender_id == uid) | (Message.recipient_id == uid)).filter(Message.group_id == None).order_by(Message.timestamp.desc()).all()
     summary = {}
     for m in msgs:
         other_id = m.recipient_id if m.sender_id == uid else m.sender_id
         if other_id not in summary:
             other_user = User.query.get(other_id)
-            summary[other_id] = {
-                "username": other_user.username,
-                "last_msg": m.content,
-                "time": m.timestamp.strftime("%H:%M")
-            }
+            if other_user:
+                summary[other_id] = {"username": other_user.username, "last_msg": m.content, "time": m.timestamp.strftime("%H:%M")}
     return jsonify(list(summary.values()))
 
 @app.route('/api/messages/<username>', methods=['GET', 'POST'])
@@ -152,20 +170,79 @@ def get_chat_summary():
 def handle_messages(username):
     me = User.query.get(get_jwt_identity())
     other = User.query.filter_by(username=username).first()
-    if not other: return jsonify({"message": "User not found"}), 404
+    if not other: return jsonify({"message": "Not found"}), 404
     if request.method == 'POST':
-        content = request.get_json().get('content')
-        db.session.add(Message(sender_id=me.id, recipient_id=other.id, content=content))
+        db.session.add(Message(sender_id=me.id, sender_name=me.username, recipient_id=other.id, content=request.get_json().get('content')))
         db.session.commit()
         return jsonify({"message": "Sent"})
-    msgs = Message.query.filter(
-        ((Message.sender_id == me.id) & (Message.recipient_id == other.id)) |
-        ((Message.sender_id == other.id) & (Message.recipient_id == me.id))
-    ).order_by(Message.timestamp.asc()).all()
-    return jsonify([{"content": m.content, "is_me": m.sender_id == me.id, "time": m.timestamp.strftime("%H:%M")} for m in msgs])
+    msgs = Message.query.filter(((Message.sender_id == me.id) & (Message.recipient_id == other.id)) | ((Message.sender_id == other.id) & (Message.recipient_id == me.id))).order_by(Message.timestamp.asc()).all()
+    return jsonify([{"content": m.content, "is_me": m.sender_id == me.id} for m in msgs])
 
-# ... [Existing Follow, Reminder, and Habit APIs remain the same] ...
+# --- GROUP API ---
+@app.route('/api/unique_contacts', methods=['GET'])
+@jwt_required()
+def get_unique_contacts():
+    me = User.query.get(get_jwt_identity())
+    contacts = set(me.followed.all()) | set(me.followers_list.all())
+    return jsonify([{"id": u.id, "username": u.username} for u in contacts])
 
+@app.route('/api/groups', methods=['GET', 'POST'])
+@jwt_required()
+def handle_groups():
+    me = User.query.get(get_jwt_identity())
+    
+    # 1. Handle Group Creation (POST)
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data.get('name'):
+            return jsonify({"message": "Group name required"}), 400
+            
+        member_ids = data.get('members', [])
+        if len(member_ids) < 2:
+            return jsonify({"message": "Select at least 2 members"}), 400
+
+        new_group = Group(name=data['name'])
+        new_group.members.append(me) # Add creator automatically
+        
+        for mid in member_ids:
+            u = User.query.get(int(mid))
+            if u:
+                new_group.members.append(u)
+        
+        db.session.add(new_group)
+        db.session.commit()
+        return jsonify({"message": "Group created"}), 201
+
+    # 2. Handle Fetching Groups (GET)
+    # This part MUST exist and be outside the 'if POST' block
+    my_groups = me.groups_list.all()
+    res = []
+    for g in my_groups:
+        last_m = Message.query.filter_by(group_id=g.id).order_by(Message.timestamp.desc()).first()
+        res.append({
+            "id": g.id, 
+            "name": g.name, 
+            "last_msg": last_m.content if last_m else "No messages", 
+            "last_sender": last_m.sender_name if last_m else ""
+        })
+    
+    # CRITICAL: This return handles the GET request!
+    return jsonify(res)
+
+@app.route('/api/group_messages/<int:gid>', methods=['GET', 'POST'])
+@jwt_required()
+def group_messages(gid):
+    me = User.query.get(get_jwt_identity())
+    group = Group.query.get(gid)
+    if not group or me not in group.members: return jsonify({"message": "Error"}), 403
+    if request.method == 'POST':
+        db.session.add(Message(sender_id=me.id, group_id=gid, content=request.get_json().get('content'), sender_name=me.username))
+        db.session.commit()
+        return jsonify({"message": "Sent"})
+    msgs = Message.query.filter_by(group_id=gid).order_by(Message.timestamp.asc()).all()
+    return jsonify([{"content": m.content, "sender": m.sender_name, "is_me": m.sender_id == me.id} for m in msgs])
+
+# --- OTHER CORE APIs ---
 @app.route('/api/follow/<username>', methods=['POST'])
 @jwt_required()
 def follow_user(username):
@@ -202,10 +279,7 @@ def send_reminder():
     data = request.get_json()
     me_id = get_jwt_identity()
     target = User.query.filter_by(username=data['target']).first()
-    if not target or not target.is_private:
-        return jsonify({"message": "Only private users can be reminded"}), 400
-    existing = Reminder.query.filter_by(sender_id=me_id, recipient_id=target.id, habit_name=data['habit']).first()
-    if existing: return jsonify({"message": "Reminder already sent for this habit"}), 400
+    if not target or not target.is_private: return jsonify({"message": "Error"}), 400
     db.session.add(Reminder(sender_id=me_id, recipient_id=target.id, habit_name=data['habit']))
     db.session.commit()
     return jsonify({"message": "Reminder sent!"})
@@ -228,13 +302,6 @@ def ack_reminder(rid):
     if rem and str(rem.recipient_id) == get_jwt_identity():
         rem.status = 'acknowledged'; db.session.commit()
     return jsonify({"message": "OK"})
-
-@app.route('/api/remind/clear/<int:rid>', methods=['DELETE'])
-@jwt_required()
-def clear_reminder(rid):
-    rem = Reminder.query.get(rid)
-    if rem: db.session.delete(rem); db.session.commit()
-    return jsonify({"message": "Cleared"})
 
 @app.route('/api/search')
 @jwt_required()
@@ -274,14 +341,6 @@ def toggle_privacy():
     user.is_private = request.get_json().get('is_private', False)
     db.session.commit()
     return jsonify({"is_private": user.is_private})
-
-@app.route('/api/social/<username>/<type>')
-@jwt_required()
-def get_social(username, type):
-    user = User.query.filter_by(username=username).first()
-    if not user: return jsonify([]), 404
-    users = user.followers_list.all() if type == 'followers' else user.followed.all()
-    return jsonify([{"username": u.username} for u in users])
 
 @app.route('/api/remove_follower/<username>', methods=['POST'])
 @jwt_required()

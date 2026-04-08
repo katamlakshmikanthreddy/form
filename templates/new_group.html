@@ -1,49 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chat</title>
+    <title>New Group</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        .box { height: 350px; overflow-y: auto; border: 1px solid #eee; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #fdfdfd; border-radius: 8px; }
-        .m { padding: 8px 12px; border-radius: 15px; font-size: 14px; max-width: 70%; }
-        .me { align-self: flex-end; background: #1a73e8; color: white; }
-        .them { align-self: flex-start; background: #e4e6eb; color: black; }
-    </style>
 </head>
 <body>
     <div class="container" style="max-width: 500px;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-            <button onclick="window.location.href='/chats'" style="width: auto; padding: 5px 15px; margin: 0;">Back</button>
-            <h3 id="cName" style="margin: 0;">Chat</h3>
-        </div>
-        <div class="box" id="box"></div>
-        <div style="display: flex; gap: 5px; margin-top: 10px;">
-            <input id="msg" placeholder="Type message..." style="margin: 0;">
-            <button onclick="send()" style="width: 80px; margin: 0;">Send</button>
-        </div>
+        <h3>Create New Group</h3>
+        <input id="gName" placeholder="Enter group name...">
+        <div id="userList" style="max-height: 300px; overflow-y: auto; text-align: left; margin: 15px 0;"></div>
+        <button onclick="createGroup()" style="background: #27ae60;">Create Group</button>
+        <button onclick="window.location.href='/groups_page'" style="background: #5f6368; margin-top: 5px;">Cancel</button>
     </div>
     <script>
-        const token = localStorage.getItem("token"), target = window.location.pathname.split('/').pop();
-        document.getElementById("cName").innerText = target;
-        function load() {
-            fetch(`/api/messages/${target}`, { headers: {"Authorization": "Bearer "+token} })
-            .then(res => res.json()).then(data => {
-                const b = document.getElementById("box"); b.innerHTML = "";
-                data.forEach(m => {
-                    let d = document.createElement("div"); d.className = `m ${m.is_me ? 'me' : 'them'}`;
-                    d.innerText = m.content; b.appendChild(d);
-                });
-                b.scrollTop = b.scrollHeight;
+        const token = localStorage.getItem("token");
+        fetch("/api/unique_contacts", { headers: {"Authorization": "Bearer "+token} })
+        .then(res => res.json()).then(data => {
+            const container = document.getElementById("userList");
+            data.forEach(u => {
+                let item = document.createElement("div");
+                item.style.padding = "10px"; item.style.borderBottom = "1px solid #eee";
+                item.innerHTML = `
+                    <label style="display:flex; justify-content:space-between; width:100%; cursor:pointer;">
+                        ${u.username}
+                        <input type="checkbox" class="user-check" value="${u.id}" style="width:auto;">
+                    </label>`;
+                container.appendChild(item);
             });
+        });
+
+        function createGroup() {
+        const name = document.getElementById("gName").value.trim();
+        const checkboxes = document.querySelectorAll('.user-check:checked');
+        const selected = Array.from(checkboxes).map(cb => cb.value);
+
+        if(!name) {
+            alert("Group name cannot be empty!");
+            return;
         }
-        function send() {
-            const val = document.getElementById("msg").value; if(!val) return;
-            fetch(`/api/messages/${target}`, {
-                method: "POST", headers: {"Content-Type": "application/json", "Authorization": "Bearer "+token},
-                body: JSON.stringify({content: val})
-            }).then(() => { document.getElementById("msg").value = ""; load(); });
+        if(selected.length < 2) {
+            alert("Please select at least 2 members to create a group.");
+            return;
         }
-        setInterval(load, 3000); load();
+
+        fetch("/api/groups", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json", 
+                "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify({name: name, members: selected})
+        })
+        .then(res => {
+            if(res.ok) {
+                window.location.href = '/groups_page';
+            } else {
+                return res.json().then(err => { throw new Error(err.message) });
+            }
+        })
+        .catch(err => alert("Error: " + err.message));
+    }
     </script>
 </body>
 </html>

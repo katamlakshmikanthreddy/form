@@ -6,29 +6,62 @@
 </head>
 <body>
     <div class="container" style="max-width: 500px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2>Chats</h2>
-            <button onclick="window.location.href='/new_chat'" style="width: 40px; height: 40px; border-radius: 50%; padding: 0; font-size: 20px;">+</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Direct Messages</h2>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="window.location.href='/groups_page'" style="width: auto; background: #8e44ad; padding: 5px 10px;">👥 Groups</button>
+                <button onclick="window.location.href='/new_chat'" style="width: 40px; height: 40px; border-radius: 50%; padding: 0; font-size: 20px;">+</button>
+            </div>
         </div>
-        <ul id="chatList" style="list-style: none; padding: 0;"></ul>
-        <button onclick="window.location.href='/dashboard'" style="background: #5f6368;">Back</button>
+
+        <ul id="chatList" style="list-style: none; padding: 0; margin-bottom: 20px;">
+            </ul>
+
+        <button onclick="window.location.href='/dashboard'" style="background: #5f6368;">Back to Dashboard</button>
     </div>
+
     <script>
         const token = localStorage.getItem("token");
-        fetch("/api/chats/summary", { headers: {"Authorization": "Bearer "+token} })
-        .then(res => res.json()).then(data => {
-            const list = document.getElementById("chatList");
-            data.forEach(c => {
-                let li = document.createElement("li");
-                li.style.cursor = "pointer"; li.style.display = "block";
-                li.onclick = () => window.location.href = '/chat/' + c.username;
-                li.innerHTML = `<div style="padding:10px; border-bottom:1px solid #eee;">
-                    <strong>${c.username}</strong><br>
-                    <small style="color:#666">${c.last_msg} • ${c.time}</small>
-                </div>`;
-                list.appendChild(li);
-            });
-        });
+        if(!token) window.location.href = "/";
+
+        function loadChats() {
+            fetch("/api/chats/summary", {
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById("chatList");
+                list.innerHTML = data.length ? "" : "<li style='text-align:center; color:#999; padding:20px;'>No active chats. Start one!</li>";
+                
+                data.forEach(c => {
+                    let li = document.createElement("li");
+                    li.style.cursor = "pointer";
+                    li.style.background = "#fff";
+                    li.style.borderBottom = "1px solid #eee";
+                    li.style.transition = "background 0.2s";
+                    li.onmouseover = () => li.style.background = "#f8f9fa";
+                    li.onmouseout = () => li.style.background = "#fff";
+                    
+                    li.onclick = () => window.location.href = '/chat/' + c.username;
+                    
+                    li.innerHTML = `
+                        <div style="display: flex; flex-direction: column; text-align: left; padding: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong>${c.username}</strong>
+                                <small style="color: #999;">${c.time}</small>
+                            </div>
+                            <span style="font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px;">
+                                ${c.last_msg}
+                            </span>
+                        </div>
+                    `;
+                    list.appendChild(li);
+                });
+            })
+            .catch(err => console.error("Error loading chats:", err));
+        }
+
+        window.onload = loadChats;
     </script>
 </body>
 </html>
