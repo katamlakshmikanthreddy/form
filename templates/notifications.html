@@ -6,9 +6,13 @@
 </head>
 <body>
     <div class="container">
-        <h2>Notifications</h2>
-        <p style="font-size: 14px; color: #666; margin-bottom: 20px;">People following you</p>
+        <h2>Follow Requests</h2>
+        <ul id="rList"></ul>
+        
+        <hr>
+        <h2>Followers</h2>
         <ul id="nList"></ul>
+        
         <button onclick="window.location.href='/dashboard'">Back to Dashboard</button>
     </div>
 
@@ -16,59 +20,59 @@
         const token = localStorage.getItem("token");
         const myName = localStorage.getItem("username");
 
-        function removeFollower(targetUser) {
-            if(!confirm(`Remove ${targetUser} from your followers?`)) return;
-            
-            fetch(`/api/remove_follower/${targetUser}`, {
+        function handleRequest(rid, action) {
+            fetch(`/api/request_action/${rid}/${action}`, {
                 method: "POST",
                 headers: {"Authorization": "Bearer " + token}
             })
-            .then(res => res.json())
-            .then(data => {
-                loadNotifications(); // Refresh the list
-            });
+            .then(() => loadAll());
         }
 
-        function loadNotifications() {
-            const list = document.getElementById("nList");
-            
-            fetch(`/api/social/${myName}/followers`, {
+        function removeFollower(targetUser) {
+            if(!confirm(`Remove ${targetUser}?`)) return;
+            fetch(`/api/remove_follower/${targetUser}`, {
+                method: "POST",
                 headers: {"Authorization": "Bearer " + token}
-            })
-            .then(res => res.json())
-            .then(data => {
-                list.innerHTML = "";
-                if (data.length === 0) {
-                    list.innerHTML = "<li style='justify-content: center; color: #888;'>No new followers.</li>";
-                    return;
-                }
+            }).then(() => loadAll());
+        }
 
+        function loadAll() {
+            // 1. Load Pending Requests
+            fetch('/api/requests', { headers: {"Authorization": "Bearer " + token} })
+            .then(res => res.json()).then(reqs => {
+                const rl = document.getElementById("rList");
+                rl.innerHTML = reqs.length ? "" : "<li style='color:#888'>No pending requests</li>";
+                reqs.forEach(r => {
+                    let li = document.createElement("li");
+                    li.innerHTML = `
+                        <div style="text-align:left">
+                            <strong>${r.sender}</strong> wants to follow you
+                        </div>
+                        <div style="display:flex; gap:5px">
+                            <button onclick="handleRequest(${r.id}, 'accept')" style="width:auto; background:#34a853; padding:5px 10px;">Accept</button>
+                            <button onclick="handleRequest(${r.id}, 'reject')" style="width:auto; background:#d93025; padding:5px 10px;">Reject</button>
+                        </div>`;
+                    rl.appendChild(li);
+                });
+            });
+
+            // 2. Load Followers
+            fetch(`/api/social/${myName}/followers`, { headers: {"Authorization": "Bearer " + token} })
+            .then(res => res.json()).then(data => {
+                const nl = document.getElementById("nList");
+                nl.innerHTML = data.length ? "" : "<li style='color:#888'>No followers yet</li>";
                 data.forEach(u => {
                     let li = document.createElement("li");
-                    li.style.display = "flex";
-                    li.style.justifyContent = "space-between";
-                    li.style.alignItems = "center";
-                    li.style.padding = "15px";
-
                     li.innerHTML = `
-                        <div>
-                            <strong style="color: #1a73e8; cursor: pointer;" onclick="window.location.href='/other/${u.username}'">${u.username}</strong>
-                            <div style="font-size: 12px; color: #666;">is following you</div>
-                        </div>
-                        <button onclick="removeFollower('${u.username}')" 
-                                style="width: auto; margin: 0; padding: 5px 10px; background: #5f6368; font-size: 11px;">
-                            Remove
-                        </button>
+                        <strong>${u.username}</strong>
+                        <button onclick="removeFollower('${u.username}')" style="width:auto; background:#5f6368; padding:5px 10px; font-size:11px;">Remove</button>
                     `;
-                    list.appendChild(li);
+                    nl.appendChild(li);
                 });
-            })
-            .catch(err => {
-                list.innerHTML = "<li style='color: red;'>Error loading notifications.</li>";
             });
         }
 
-        window.onload = loadNotifications;
+        window.onload = loadAll;
     </script>
 </body>
 </html>

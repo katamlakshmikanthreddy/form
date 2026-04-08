@@ -38,6 +38,12 @@ class User(db.Model):
     def is_following(self, user):
         return self.followed.filter(followers.c.followed_id == user.id).count() > 0
 
+class FollowRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    # status can be 'pending'
+
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
@@ -60,10 +66,8 @@ def other_user_page(username): return render_template('other.html')
 def followers_view(username): return render_template('followers.html')
 @app.route('/user/<username>/following')
 def following_view(username): return render_template('following.html')
-# In app.py - Ensure this specific route exists
 @app.route('/notifications')
-def notifications_page(): 
-    return render_template('notifications.html')
+def notifications_page(): return render_template('notifications.html')
 
 # -------- API -------- #
 @app.route('/api/signup', methods=['POST'])
@@ -87,14 +91,62 @@ def get_user_info(username):
     user = User.query.filter_by(username=username).first()
     if not user: return jsonify({"message": "Not found"}), 404
     me = User.query.get(get_jwt_identity())
+    
+    pending = FollowRequest.query.filter_by(sender_id=me.id, recipient_id=user.id).first()
+
     return jsonify({
         "username": user.username,
         "follower_count": user.followers_list.count(),
         "following_count": user.followed.count(),
         "is_following": me.is_following(user),
+        "has_requested": pending is not None,
         "follows_me": user.is_following(me),
         "is_private": user.is_private
     })
+
+@app.route('/api/follow/<username>', methods=['POST'])
+@jwt_required()
+def follow_user(username):
+    me = User.query.get(get_jwt_identity())
+    target = User.query.filter_by(username=username).first()
+    
+    if not target or me.id == target.id: return jsonify({"message": "Error"}), 400
+    if me.is_following(target): return jsonify({"message": "Already following"}), 400
+
+    if target.is_private:
+        existing = FollowRequest.query.filter_by(sender_id=me.id, recipient_id=target.id).first()
+        if existing:
+            return jsonify({"message": "Request already sent"}), 400
+        
+        db.session.add(FollowRequest(sender_id=me.id, recipient_id=target.id))
+        db.session.commit()
+        return jsonify({"message": "Request Sent"})
+    
+    me.follow(target)
+    db.session.commit()
+    return jsonify({"message": "Followed"})
+
+@app.route('/api/requests', methods=['GET'])
+@jwt_required()
+def get_requests():
+    me_id = get_jwt_identity()
+    reqs = FollowRequest.query.filter_by(recipient_id=me_id).all()
+    return jsonify([{"id": r.id, "sender": User.query.get(r.sender_id).username} for r in reqs])
+
+@app.route('/api/request_action/<int:rid>/<action>', methods=['POST'])
+@jwt_required()
+def request_action(rid, action):
+    req = FollowRequest.query.get(rid)
+    if not req or str(req.recipient_id) != get_jwt_identity(): return jsonify({"message": "Error"}), 403
+    
+    if action == 'accept':
+        sender = User.query.get(req.sender_id)
+        recipient = User.query.get(req.recipient_id)
+        sender.follow(recipient)
+    
+    db.session.delete(req)
+    db.session.commit()
+    return jsonify({"message": "Success"})
 
 @app.route('/api/search')
 @jwt_required()
@@ -106,15 +158,7 @@ def search():
         return jsonify({"message": "Private", "habits": []})
     return jsonify({"habits": [{"name": h.name, "completed": h.completed} for h in target.habits]})
 
-@app.route('/api/follow/<username>', methods=['POST'])
-@jwt_required()
-def follow_user(username):
-    me, target = User.query.get(get_jwt_identity()), User.query.filter_by(username=username).first()
-    if not target or me.id == target.id: return jsonify({"message": "Error"}), 400
-    me.follow(target)
-    db.session.commit()
-    return jsonify({"message": "Followed"})
-
+# ... (unfollow, remove_follower, get_social, handle_habits, habit_ops, toggle_privacy stay the same)
 @app.route('/api/unfollow/<username>', methods=['POST'])
 @jwt_required()
 def unfollow_user(username):

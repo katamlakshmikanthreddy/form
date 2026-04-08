@@ -24,26 +24,48 @@
     <script>
         const token = localStorage.getItem("token"), myName = localStorage.getItem("username");
         const target = window.location.pathname.split('/').pop();
+
         function act(type) {
             fetch(`/api/${type}/${target}`, {method:"POST", headers:{"Authorization":"Bearer "+token}})
-            .then(() => location.reload());
+            .then(res => res.json())
+            .then(data => {
+                if(data.message === "Request already sent") {
+                    alert("Request already sent!");
+                } else {
+                    location.reload();
+                }
+            });
         }
+
         function load() {
             fetch("/api/user_info/"+target, {headers:{"Authorization":"Bearer "+token}})
             .then(res => res.json()).then(data => {
                 document.getElementById("uName").innerText = data.username;
+                document.getElementById("fwerL").innerText = data.follower_count + " Followers";
                 document.getElementById("fwerL").href = `/user/${target}/followers`;
+                document.getElementById("fwingL").innerText = data.following_count + " Following";
                 document.getElementById("fwingL").href = `/user/${target}/following`;
+                
                 if(target.toLowerCase() !== myName.toLowerCase()) {
-                    if(data.is_following) document.getElementById("unfBtn").style.display = "block";
-                    else document.getElementById("fBtn").style.display = "block";
+                    if(data.is_following) {
+                        document.getElementById("unfBtn").style.display = "block";
+                    } else if(data.has_requested) {
+                        const f = document.getElementById("fBtn");
+                        f.innerText = "Requested";
+                        f.style.background = "#9aa0a6";
+                        f.style.display = "block";
+                        f.disabled = true;
+                    } else {
+                        document.getElementById("fBtn").style.display = "block";
+                    }
                     if(data.follows_me) document.getElementById("remBtn").style.display = "block";
                 }
             });
+
             fetch("/api/search?username="+target, {headers:{"Authorization":"Bearer "+token}})
             .then(res => res.json()).then(data => {
                 const l = document.getElementById("hList");
-                if(data.message === "Private") l.innerHTML = "<li style='text-align:center; background:#eee;'>🔒 Private Account</li>";
+                if(data.message === "Private") l.innerHTML = "<li style='text-align:center; background:#eee;'>🔒 Private Account. Follow to view habits.</li>";
                 else {
                     l.innerHTML = data.habits.length ? "" : "<li>No habits.</li>";
                     data.habits.forEach(h => {
