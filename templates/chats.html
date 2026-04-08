@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chats</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 500px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2>Chats</h2>
+            <button onclick="window.location.href='/new_chat'" style="width: 40px; height: 40px; border-radius: 50%; padding: 0; font-size: 20px;">+</button>
+        </div>
+        <ul id="chatList" style="list-style: none; padding: 0;"></ul>
+        <button onclick="window.location.href='/dashboard'" style="background: #5f6368;">Back</button>
+    </div>
+    <script>
+        const token = localStorage.getItem("token");
+        fetch("/api/chats/summary", { headers: {"Authorization": "Bearer "+token} })
+        .then(res => res.json()).then(data => {
+            const list = document.getElementById("chatList");
+            data.forEach(c => {
+                let li = document.createElement("li");
+                li.style.cursor = "pointer"; li.style.display = "block";
+                li.onclick = () => window.location.href = '/chat/' + c.username;
+                li.innerHTML = `<div style="padding:10px; border-bottom:1px solid #eee;">
+                    <strong>${c.username}</strong><br>
+                    <small style="color:#666">${c.last_msg} • ${c.time}</small>
+                </div>`;
+                list.appendChild(li);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -57,7 +57,6 @@
             })
             .then(res => res.json())
             .then(userData => {
-                // FIXED: Using userData instead of data
                 document.getElementById("uName").innerText = userData.username;
                 
                 const fwerL = document.getElementById("fwerL");
@@ -85,6 +84,15 @@
                     if(userData.follows_me) {
                         document.getElementById("remBtn").style.display = "block";
                     }
+
+                    // Mutual Follow Check for Message Button
+                    if(userData.is_following && userData.follows_me) {
+                        let mBtn = document.createElement("button");
+                        mBtn.innerText = "Message";
+                        mBtn.style.background = "#1a73e8";
+                        mBtn.onclick = () => window.location.href = '/chat/' + target;
+                        document.getElementById("btnArea").appendChild(mBtn);
+                    }
                 }
 
                 // Habit Logic
@@ -106,14 +114,11 @@
                             
                             li.innerHTML = `<span>${h.name} ${h.completed ? '✅' : '❌'}</span>`;
                             
-                            // Show Remind button ONLY for Private users and ONLY if habit is not completed
                             if(userData.is_private && !h.completed) {
                                 let b = document.createElement("button");
                                 b.innerText = "Remind"; 
-                                b.style.width = "auto"; 
-                                b.style.margin = "0";
-                                b.style.padding = "5px 10px"; 
-                                b.style.fontSize = "10px";
+                                b.style.width = "auto"; b.style.margin = "0";
+                                b.style.padding = "5px 10px"; b.style.fontSize = "10px";
                                 b.onclick = () => sendRemind(h.name);
                                 li.appendChild(b);
                             }

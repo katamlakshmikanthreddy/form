@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>New Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 500px;">
+        <h3>Select a Mutual Friend</h3>
+        <ul id="mList" style="list-style: none; padding: 0;"></ul>
+        <button onclick="window.location.href='/chats'" style="background: #5f6368;">Cancel</button>
+    </div>
+    <script>
+        const token = localStorage.getItem("token");
+        fetch("/api/mutuals", { headers: {"Authorization": "Bearer "+token} })
+        .then(res => res.json()).then(data => {
+            const list = document.getElementById("mList");
+            if(!data.length) list.innerHTML = "<li>No mutual friends to chat with.</li>";
+            data.forEach(u => {
+                let li = document.createElement("li");
+                li.style.padding = "15px"; li.style.borderBottom = "1px solid #eee"; li.style.cursor = "pointer";
+                li.innerText = u.username;
+                li.onclick = () => window.location.href = '/chat/' + u.username;
+                list.appendChild(li);
+            });
+        });
+    </script>
+</body>
+</html>

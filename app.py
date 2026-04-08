@@ -38,6 +38,13 @@ class User(db.Model):
     def is_following(self, user):
         return self.followed.filter(followers.c.followed_id == user.id).count() > 0
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+
 class FollowRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -48,7 +55,7 @@ class Reminder(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     habit_name = db.Column(db.String(200))
-    status = db.Column(db.String(50), default='pending') # pending, acknowledged
+    status = db.Column(db.String(50), default='pending') 
 
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -74,6 +81,12 @@ def followers_view(username): return render_template('followers.html')
 def following_view(username): return render_template('following.html')
 @app.route('/notifications')
 def notifications_page(): return render_template('notifications.html')
+@app.route('/chats')
+def chats_page(): return render_template('chats.html')
+@app.route('/chat/<username>')
+def chat_view(username): return render_template('chat.html')
+@app.route('/new_chat')
+def new_chat_page(): return render_template('new_chat.html')
 
 # -------- API -------- #
 @app.route('/api/signup', methods=['POST'])
@@ -107,6 +120,51 @@ def get_user_info(username):
         "follows_me": user.is_following(me),
         "is_private": user.is_private
     })
+
+# --- CHAT API ---
+@app.route('/api/mutuals', methods=['GET'])
+@jwt_required()
+def get_mutuals():
+    me = User.query.get(get_jwt_identity())
+    following = me.followed.all()
+    mutuals = [u for u in following if u.is_following(me)]
+    return jsonify([{"username": u.username} for u in mutuals])
+
+@app.route('/api/chats/summary', methods=['GET'])
+@jwt_required()
+def get_chat_summary():
+    uid = int(get_jwt_identity())
+    msgs = Message.query.filter((Message.sender_id == uid) | (Message.recipient_id == uid)).order_by(Message.timestamp.desc()).all()
+    summary = {}
+    for m in msgs:
+        other_id = m.recipient_id if m.sender_id == uid else m.sender_id
+        if other_id not in summary:
+            other_user = User.query.get(other_id)
+            summary[other_id] = {
+                "username": other_user.username,
+                "last_msg": m.content,
+                "time": m.timestamp.strftime("%H:%M")
+            }
+    return jsonify(list(summary.values()))
+
+@app.route('/api/messages/<username>', methods=['GET', 'POST'])
+@jwt_required()
+def handle_messages(username):
+    me = User.query.get(get_jwt_identity())
+    other = User.query.filter_by(username=username).first()
+    if not other: return jsonify({"message": "User not found"}), 404
+    if request.method == 'POST':
+        content = request.get_json().get('content')
+        db.session.add(Message(sender_id=me.id, recipient_id=other.id, content=content))
+        db.session.commit()
+        return jsonify({"message": "Sent"})
+    msgs = Message.query.filter(
+        ((Message.sender_id == me.id) & (Message.recipient_id == other.id)) |
+        ((Message.sender_id == other.id) & (Message.recipient_id == me.id))
+    ).order_by(Message.timestamp.asc()).all()
+    return jsonify([{"content": m.content, "is_me": m.sender_id == me.id, "time": m.timestamp.strftime("%H:%M")} for m in msgs])
+
+# ... [Existing Follow, Reminder, and Habit APIs remain the same] ...
 
 @app.route('/api/follow/<username>', methods=['POST'])
 @jwt_required()
@@ -146,11 +204,8 @@ def send_reminder():
     target = User.query.filter_by(username=data['target']).first()
     if not target or not target.is_private:
         return jsonify({"message": "Only private users can be reminded"}), 400
-    
-    # One-time per habit check
     existing = Reminder.query.filter_by(sender_id=me_id, recipient_id=target.id, habit_name=data['habit']).first()
     if existing: return jsonify({"message": "Reminder already sent for this habit"}), 400
-    
     db.session.add(Reminder(sender_id=me_id, recipient_id=target.id, habit_name=data['habit']))
     db.session.commit()
     return jsonify({"message": "Reminder sent!"})
