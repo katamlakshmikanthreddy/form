@@ -42,7 +42,13 @@ class FollowRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    # status can be 'pending'
+
+class Reminder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    habit_name = db.Column(db.String(200))
+    status = db.Column(db.String(50), default='pending') # pending, acknowledged
 
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -83,7 +89,7 @@ def login():
     data = request.get_json()
     user = User.query.filter_by(username=data['username'], password=data['password']).first()
     if not user: return jsonify({"message": "Invalid"}), 401
-    return jsonify({"token": create_access_token(identity=str(user.id))})
+    return jsonify({"token": create_access_token(identity=str(user.id)), "username": user.username})
 
 @app.route('/api/user_info/<username>')
 @jwt_required()
@@ -91,9 +97,7 @@ def get_user_info(username):
     user = User.query.filter_by(username=username).first()
     if not user: return jsonify({"message": "Not found"}), 404
     me = User.query.get(get_jwt_identity())
-    
     pending = FollowRequest.query.filter_by(sender_id=me.id, recipient_id=user.id).first()
-
     return jsonify({
         "username": user.username,
         "follower_count": user.followers_list.count(),
@@ -107,30 +111,21 @@ def get_user_info(username):
 @app.route('/api/follow/<username>', methods=['POST'])
 @jwt_required()
 def follow_user(username):
-    me = User.query.get(get_jwt_identity())
-    target = User.query.filter_by(username=username).first()
-    
+    me, target = User.query.get(get_jwt_identity()), User.query.filter_by(username=username).first()
     if not target or me.id == target.id: return jsonify({"message": "Error"}), 400
-    if me.is_following(target): return jsonify({"message": "Already following"}), 400
-
     if target.is_private:
-        existing = FollowRequest.query.filter_by(sender_id=me.id, recipient_id=target.id).first()
-        if existing:
+        if FollowRequest.query.filter_by(sender_id=me.id, recipient_id=target.id).first():
             return jsonify({"message": "Request already sent"}), 400
-        
         db.session.add(FollowRequest(sender_id=me.id, recipient_id=target.id))
         db.session.commit()
         return jsonify({"message": "Request Sent"})
-    
-    me.follow(target)
-    db.session.commit()
+    me.follow(target); db.session.commit()
     return jsonify({"message": "Followed"})
 
 @app.route('/api/requests', methods=['GET'])
 @jwt_required()
 def get_requests():
-    me_id = get_jwt_identity()
-    reqs = FollowRequest.query.filter_by(recipient_id=me_id).all()
+    reqs = FollowRequest.query.filter_by(recipient_id=get_jwt_identity()).all()
     return jsonify([{"id": r.id, "sender": User.query.get(r.sender_id).username} for r in reqs])
 
 @app.route('/api/request_action/<int:rid>/<action>', methods=['POST'])
@@ -138,15 +133,53 @@ def get_requests():
 def request_action(rid, action):
     req = FollowRequest.query.get(rid)
     if not req or str(req.recipient_id) != get_jwt_identity(): return jsonify({"message": "Error"}), 403
-    
     if action == 'accept':
-        sender = User.query.get(req.sender_id)
-        recipient = User.query.get(req.recipient_id)
-        sender.follow(recipient)
-    
-    db.session.delete(req)
-    db.session.commit()
+        User.query.get(req.sender_id).follow(User.query.get(req.recipient_id))
+    db.session.delete(req); db.session.commit()
     return jsonify({"message": "Success"})
+
+@app.route('/api/remind', methods=['POST'])
+@jwt_required()
+def send_reminder():
+    data = request.get_json()
+    me_id = get_jwt_identity()
+    target = User.query.filter_by(username=data['target']).first()
+    if not target or not target.is_private:
+        return jsonify({"message": "Only private users can be reminded"}), 400
+    
+    # One-time per habit check
+    existing = Reminder.query.filter_by(sender_id=me_id, recipient_id=target.id, habit_name=data['habit']).first()
+    if existing: return jsonify({"message": "Reminder already sent for this habit"}), 400
+    
+    db.session.add(Reminder(sender_id=me_id, recipient_id=target.id, habit_name=data['habit']))
+    db.session.commit()
+    return jsonify({"message": "Reminder sent!"})
+
+@app.route('/api/notifications/reminders', methods=['GET'])
+@jwt_required()
+def get_reminders():
+    uid = get_jwt_identity()
+    received = Reminder.query.filter_by(recipient_id=uid, status='pending').all()
+    acks = Reminder.query.filter_by(sender_id=uid, status='acknowledged').all()
+    return jsonify({
+        "received": [{"id": r.id, "sender": User.query.get(r.sender_id).username, "habit": r.habit_name} for r in received],
+        "acks": [{"id": r.id, "recipient": User.query.get(r.recipient_id).username, "habit": r.habit_name} for r in acks]
+    })
+
+@app.route('/api/remind/ack/<int:rid>', methods=['POST'])
+@jwt_required()
+def ack_reminder(rid):
+    rem = Reminder.query.get(rid)
+    if rem and str(rem.recipient_id) == get_jwt_identity():
+        rem.status = 'acknowledged'; db.session.commit()
+    return jsonify({"message": "OK"})
+
+@app.route('/api/remind/clear/<int:rid>', methods=['DELETE'])
+@jwt_required()
+def clear_reminder(rid):
+    rem = Reminder.query.get(rid)
+    if rem: db.session.delete(rem); db.session.commit()
+    return jsonify({"message": "Cleared"})
 
 @app.route('/api/search')
 @jwt_required()
@@ -157,29 +190,6 @@ def search():
     if target.is_private and not me.is_following(target) and me.id != target.id:
         return jsonify({"message": "Private", "habits": []})
     return jsonify({"habits": [{"name": h.name, "completed": h.completed} for h in target.habits]})
-
-# ... (unfollow, remove_follower, get_social, handle_habits, habit_ops, toggle_privacy stay the same)
-@app.route('/api/unfollow/<username>', methods=['POST'])
-@jwt_required()
-def unfollow_user(username):
-    me, target = User.query.get(get_jwt_identity()), User.query.filter_by(username=username).first()
-    if target: me.unfollow(target); db.session.commit()
-    return jsonify({"message": "Unfollowed"})
-
-@app.route('/api/remove_follower/<username>', methods=['POST'])
-@jwt_required()
-def remove_follower(username):
-    me, target = User.query.get(get_jwt_identity()), User.query.filter_by(username=username).first()
-    if target: target.unfollow(me); db.session.commit()
-    return jsonify({"message": "Removed"})
-
-@app.route('/api/social/<username>/<type>')
-@jwt_required()
-def get_social(username, type):
-    user = User.query.filter_by(username=username).first()
-    if not user: return jsonify([]), 404
-    users = user.followers_list.all() if type == 'followers' else user.followed.all()
-    return jsonify([{"username": u.username} for u in users])
 
 @app.route('/api/habits', methods=['GET', 'POST'])
 @jwt_required()
@@ -209,6 +219,21 @@ def toggle_privacy():
     user.is_private = request.get_json().get('is_private', False)
     db.session.commit()
     return jsonify({"is_private": user.is_private})
+
+@app.route('/api/social/<username>/<type>')
+@jwt_required()
+def get_social(username, type):
+    user = User.query.filter_by(username=username).first()
+    if not user: return jsonify([]), 404
+    users = user.followers_list.all() if type == 'followers' else user.followed.all()
+    return jsonify([{"username": u.username} for u in users])
+
+@app.route('/api/remove_follower/<username>', methods=['POST'])
+@jwt_required()
+def remove_follower(username):
+    me, target = User.query.get(get_jwt_identity()), User.query.filter_by(username=username).first()
+    if target: target.unfollow(me); db.session.commit()
+    return jsonify({"message": "Removed"})
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)

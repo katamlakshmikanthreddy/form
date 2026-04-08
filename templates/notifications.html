@@ -6,71 +6,78 @@
 </head>
 <body>
     <div class="container">
-        <h2>Follow Requests</h2>
-        <ul id="rList"></ul>
-        
-        <hr>
-        <h2>Followers</h2>
-        <ul id="nList"></ul>
-        
+        <div id="reqSec" style="display:none;">
+            <h2>Follow Requests</h2>
+            <ul id="rList"></ul>
+            <hr>
+        </div>
+
+        <div id="remSec" style="display:none;">
+            <h2>Habit Reminders</h2>
+            <ul id="remList"></ul>
+            <hr>
+        </div>
+
+        <div id="emptyMsg" style="padding:20px; color:#888;">No new notifications.</div>
         <button onclick="window.location.href='/dashboard'">Back to Dashboard</button>
     </div>
 
     <script>
         const token = localStorage.getItem("token");
-        const myName = localStorage.getItem("username");
-
-        function handleRequest(rid, action) {
-            fetch(`/api/request_action/${rid}/${action}`, {
-                method: "POST",
-                headers: {"Authorization": "Bearer " + token}
-            })
-            .then(() => loadAll());
-        }
-
-        function removeFollower(targetUser) {
-            if(!confirm(`Remove ${targetUser}?`)) return;
-            fetch(`/api/remove_follower/${targetUser}`, {
-                method: "POST",
-                headers: {"Authorization": "Bearer " + token}
-            }).then(() => loadAll());
-        }
 
         function loadAll() {
-            // 1. Load Pending Requests
-            fetch('/api/requests', { headers: {"Authorization": "Bearer " + token} })
-            .then(res => res.json()).then(reqs => {
-                const rl = document.getElementById("rList");
-                rl.innerHTML = reqs.length ? "" : "<li style='color:#888'>No pending requests</li>";
-                reqs.forEach(r => {
-                    let li = document.createElement("li");
-                    li.innerHTML = `
-                        <div style="text-align:left">
-                            <strong>${r.sender}</strong> wants to follow you
-                        </div>
-                        <div style="display:flex; gap:5px">
-                            <button onclick="handleRequest(${r.id}, 'accept')" style="width:auto; background:#34a853; padding:5px 10px;">Accept</button>
-                            <button onclick="handleRequest(${r.id}, 'reject')" style="width:auto; background:#d93025; padding:5px 10px;">Reject</button>
-                        </div>`;
-                    rl.appendChild(li);
+            let active = false;
+            
+            const p1 = fetch('/api/requests', { headers: {"Authorization": "Bearer "+token} })
+                .then(res => res.json()).then(reqs => {
+                    const rl = document.getElementById("rList");
+                    rl.innerHTML = "";
+                    if(reqs.length > 0) {
+                        active = true;
+                        document.getElementById("reqSec").style.display = "block";
+                        reqs.forEach(r => {
+                            let li = document.createElement("li");
+                            li.innerHTML = `<span>${r.sender} wants to follow</span>
+                                <div style="display:flex; gap:5px">
+                                    <button onclick="reqAct(${r.id},'accept')" style="width:auto; background:green;">Accept</button>
+                                    <button onclick="reqAct(${r.id},'reject')" style="width:auto; background:red;">Reject</button>
+                                </div>`;
+                            rl.appendChild(li);
+                        });
+                    } else document.getElementById("reqSec").style.display = "none";
                 });
-            });
 
-            // 2. Load Followers
-            fetch(`/api/social/${myName}/followers`, { headers: {"Authorization": "Bearer " + token} })
-            .then(res => res.json()).then(data => {
-                const nl = document.getElementById("nList");
-                nl.innerHTML = data.length ? "" : "<li style='color:#888'>No followers yet</li>";
-                data.forEach(u => {
-                    let li = document.createElement("li");
-                    li.innerHTML = `
-                        <strong>${u.username}</strong>
-                        <button onclick="removeFollower('${u.username}')" style="width:auto; background:#5f6368; padding:5px 10px; font-size:11px;">Remove</button>
-                    `;
-                    nl.appendChild(li);
+            const p2 = fetch('/api/notifications/reminders', { headers: {"Authorization": "Bearer "+token} })
+                .then(res => res.json()).then(data => {
+                    const list = document.getElementById("remList");
+                    list.innerHTML = "";
+                    if(data.received.length > 0 || data.acks.length > 0) {
+                        active = true;
+                        document.getElementById("remSec").style.display = "block";
+                        data.received.forEach(r => {
+                            let li = document.createElement("li");
+                            li.innerHTML = `<span>${r.sender} reminded: ${r.habit}</span>
+                                <button onclick="ackRem(${r.id})" style="width:auto; background:#1a73e8;">OK</button>`;
+                            list.appendChild(li);
+                        });
+                        data.acks.forEach(a => {
+                            let li = document.createElement("li");
+                            li.style.background = "#e8f0fe";
+                            li.innerHTML = `<span>${a.recipient} acknowledged: ${a.habit}</span>
+                                <button onclick="clearRem(${a.id})" style="width:auto; background:#555;">Clear</button>`;
+                            list.appendChild(li);
+                        });
+                    } else document.getElementById("remSec").style.display = "none";
                 });
+
+            Promise.all([p1, p2]).then(() => {
+                document.getElementById("emptyMsg").style.display = active ? "none" : "block";
             });
         }
+
+        function reqAct(rid, act) { fetch(`/api/request_action/${rid}/${act}`, {method:"POST", headers:{"Authorization":"Bearer "+token}}).then(loadAll); }
+        function ackRem(rid) { fetch(`/api/remind/ack/${rid}`, {method:"POST", headers:{"Authorization":"Bearer "+token}}).then(loadAll); }
+        function clearRem(rid) { fetch(`/api/remind/clear/${rid}`, {method:"DELETE", headers:{"Authorization":"Bearer "+token}}).then(loadAll); }
 
         window.onload = loadAll;
     </script>

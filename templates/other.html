@@ -21,61 +21,113 @@
         <ul id="hList"></ul>
         <button onclick="window.location.href='/dashboard'">Back Home</button>
     </div>
+
     <script>
         const token = localStorage.getItem("token"), myName = localStorage.getItem("username");
         const target = window.location.pathname.split('/').pop();
 
         function act(type) {
-            fetch(`/api/${type}/${target}`, {method:"POST", headers:{"Authorization":"Bearer "+token}})
+            fetch(`/api/${type}/${target}`, {
+                method: "POST", 
+                headers: {"Authorization": "Bearer " + token}
+            })
             .then(res => res.json())
             .then(data => {
-                if(data.message === "Request already sent") {
-                    alert("Request already sent!");
-                } else {
-                    location.reload();
-                }
+                if(data.message === "Request already sent") alert(data.message);
+                else location.reload();
             });
+        }
+
+        function sendRemind(habit) {
+            fetch("/api/remind", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json", 
+                    "Authorization": "Bearer " + token
+                },
+                body: JSON.stringify({target: target, habit: habit})
+            })
+            .then(res => res.json())
+            .then(data => alert(data.message));
         }
 
         function load() {
-            fetch("/api/user_info/"+target, {headers:{"Authorization":"Bearer "+token}})
-            .then(res => res.json()).then(data => {
-                document.getElementById("uName").innerText = data.username;
-                document.getElementById("fwerL").innerText = data.follower_count + " Followers";
-                document.getElementById("fwerL").href = `/user/${target}/followers`;
-                document.getElementById("fwingL").innerText = data.following_count + " Following";
-                document.getElementById("fwingL").href = `/user/${target}/following`;
+            fetch("/api/user_info/" + target, {
+                headers: {"Authorization": "Bearer " + token}
+            })
+            .then(res => res.json())
+            .then(userData => {
+                // FIXED: Using userData instead of data
+                document.getElementById("uName").innerText = userData.username;
                 
+                const fwerL = document.getElementById("fwerL");
+                fwerL.innerText = userData.follower_count + " Followers";
+                fwerL.href = `/user/${target}/followers`;
+                
+                const fwingL = document.getElementById("fwingL");
+                fwingL.innerText = userData.following_count + " Following";
+                fwingL.href = `/user/${target}/following`;
+                
+                // Button Logic
                 if(target.toLowerCase() !== myName.toLowerCase()) {
-                    if(data.is_following) {
+                    if(userData.is_following) {
                         document.getElementById("unfBtn").style.display = "block";
-                    } else if(data.has_requested) {
-                        const f = document.getElementById("fBtn");
-                        f.innerText = "Requested";
-                        f.style.background = "#9aa0a6";
-                        f.style.display = "block";
-                        f.disabled = true;
+                    } else if(userData.has_requested) {
+                        const b = document.getElementById("fBtn");
+                        b.innerText = "Requested"; 
+                        b.disabled = true; 
+                        b.style.display = "block"; 
+                        b.style.background = "#999";
                     } else {
                         document.getElementById("fBtn").style.display = "block";
                     }
-                    if(data.follows_me) document.getElementById("remBtn").style.display = "block";
+                    
+                    if(userData.follows_me) {
+                        document.getElementById("remBtn").style.display = "block";
+                    }
                 }
-            });
 
-            fetch("/api/search?username="+target, {headers:{"Authorization":"Bearer "+token}})
-            .then(res => res.json()).then(data => {
-                const l = document.getElementById("hList");
-                if(data.message === "Private") l.innerHTML = "<li style='text-align:center; background:#eee;'>🔒 Private Account. Follow to view habits.</li>";
-                else {
-                    l.innerHTML = data.habits.length ? "" : "<li>No habits.</li>";
-                    data.habits.forEach(h => {
-                        let li = document.createElement("li");
-                        li.innerText = h.name + (h.completed ? " ✅" : " ❌");
-                        l.appendChild(li);
-                    });
-                }
+                // Habit Logic
+                fetch("/api/search?username=" + target, {
+                    headers: {"Authorization": "Bearer " + token}
+                })
+                .then(res => res.json())
+                .then(hData => {
+                    const l = document.getElementById("hList");
+                    if(hData.message === "Private") {
+                        l.innerHTML = "<li style='text-align:center; background:#eee;'>🔒 Private Account</li>";
+                    } else {
+                        l.innerHTML = hData.habits.length ? "" : "<li>No habits.</li>";
+                        hData.habits.forEach(h => {
+                            let li = document.createElement("li");
+                            li.style.display = "flex";
+                            li.style.justifyContent = "space-between";
+                            li.style.alignItems = "center";
+                            
+                            li.innerHTML = `<span>${h.name} ${h.completed ? '✅' : '❌'}</span>`;
+                            
+                            // Show Remind button ONLY for Private users and ONLY if habit is not completed
+                            if(userData.is_private && !h.completed) {
+                                let b = document.createElement("button");
+                                b.innerText = "Remind"; 
+                                b.style.width = "auto"; 
+                                b.style.margin = "0";
+                                b.style.padding = "5px 10px"; 
+                                b.style.fontSize = "10px";
+                                b.onclick = () => sendRemind(h.name);
+                                li.appendChild(b);
+                            }
+                            l.appendChild(li);
+                        });
+                    }
+                });
+            })
+            .catch(err => {
+                console.error("Error loading profile:", err);
+                document.getElementById("uName").innerText = "Error loading user";
             });
         }
+        
         window.onload = load;
     </script>
 </body>
