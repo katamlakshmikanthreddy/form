@@ -324,6 +324,34 @@ def handle_habits():
     db.session.commit()
     return jsonify({"message": "Added"}), 201
 
+@app.route('/api/social/<username>/<type>', methods=['GET'])
+@jwt_required()
+def get_social_list(username, type):
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+    
+    if type == 'followers':
+        # Get users who follow this person
+        users = user.followers_list.all()
+    elif type == 'following':
+        # Get users this person follows
+        users = user.followed.all()
+    else:
+        return jsonify({"message": "Invalid type"}), 400
+
+    return jsonify([{"username": u.username} for u in users])
+
+@app.route('/api/unfollow/<username>', methods=['POST'])
+@jwt_required()
+def unfollow_user(username):
+    me = User.query.get(get_jwt_identity())
+    target = User.query.filter_by(username=username).first()
+    if target:
+        me.unfollow(target)
+        db.session.commit()
+    return jsonify({"message": "Unfollowed"})
+
 @app.route('/api/habits/<int:hid>', methods=['PUT', 'DELETE'])
 @jwt_required()
 def habit_ops(hid):
