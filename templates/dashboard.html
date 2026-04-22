@@ -3,49 +3,146 @@
 <head>
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* New styles added without changing existing ones */
+        .header-actions {
+            display: flex; 
+            gap: 15px; 
+            align-items: center;
+        }
+
+        .icon-btn {
+            background: none; 
+            border: none; 
+            padding: 0; 
+            cursor: pointer; 
+            width: 30px; 
+            height: 30px;
+            transition: transform 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .icon-btn img {
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain;
+        }
+
+        #searchContainer {
+            display: none; 
+            margin: 15px 0; 
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .habit-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .stat-pill {
+            padding: 5px 12px;
+            background: #eef2f7;
+            border-radius: 15px;
+            transition: background 0.3s;
+        }
+
+        .stat-pill:hover {
+            background: #dfe6ed;
+        }
+    </style>
 </head>
 <body>
     <div class="container" style="max-width: 500px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 id="dispUser">Dashboard</h2>
-            <div style="display: flex; gap: 5px;">
-                <button onclick="window.location.href='/chats'" style="width: auto; background: #1a73e8; padding: 5px 10px;">💬 Chats</button>
-                <button onclick="window.location.href='/notifications'" style="width: auto; background: #fb923c; padding: 5px 10px;">🔔 Notifications</button>
+        <!-- Top Navigation Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 id="dispUser" style="margin: 0; color: #1a73e8;">Dashboard</h2>
+            <div class="header-actions">
+                
+                <!-- Search Toggle -->
+                <button class="icon-btn" onclick="toggleSearchBar()" title="Search">
+                    <img src="{{ url_for('static', filename='search.png') }}" alt="Search">
+                </button>
+
+                <!-- Chat Button -->
+                <button class="icon-btn" onclick="window.location.href='/chats'" title="Chats">
+                    <img src="{{ url_for('static', filename='chat.png') }}" alt="Chats" style="width: 35px; height: 35px;">
+                </button>
+
+                <!-- Notification Button -->
+                <button class="icon-btn" onclick="window.location.href='/notifications'" title="Notifications">
+                    <img src="{{ url_for('static', filename='notification.png') }}" alt="Notifications" style="width: 35px; height: 35px;">
+                </button>
+
             </div>
         </div>
 
-        <div style="margin: 10px 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px;">
-            <span>Public</span>
+        <!-- Animated Search Bar Container -->
+        <div id="searchContainer">
+            <div style="display: flex; gap: 8px;">
+                <input id="sIn" placeholder="Search username..." style="margin: 0; flex: 1;">
+                <button onclick="doSearch()" style="width: 80px; margin: 0; padding: 10px;">Go</button>
+            </div>
+        </div>
+
+        <!-- Privacy Toggle Section -->
+        <div style="margin: 20px 0; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 14px; background: #fff; padding: 10px; border-radius: 30px; border: 1px solid #eee;">
+            <span style="color: #5f6368; font-weight: 500;">Public</span>
             <label class="switch">
                 <input type="checkbox" id="privacyToggle" onchange="updatePrivacy()">
                 <span class="slider"></span>
             </label>
-            <span>Private</span>
+            <span style="color: #5f6368; font-weight: 500;">Private</span>
         </div>
 
-        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px;">
-            <a href="#" id="fwerL" class="stat-link">0 Followers</a>
-            <a href="#" id="fwingL" class="stat-link">0 Following</a>
+        <!-- Social Stats -->
+        <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 25px;">
+            <a href="#" id="fwerL" class="stat-link stat-pill">0 Followers</a>
+            <a href="#" id="fwingL" class="stat-link stat-pill">0 Following</a>
         </div>
 
-        <div style="display: flex; gap: 5px;">
-            <input id="sIn" placeholder="Search user...">
-            <button onclick="doSearch()" style="width: 80px; margin-top:10px;">Search</button>
+        <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;">
+        
+        <!-- Habits Section -->
+        <h3 style="text-align: left; margin-bottom: 15px; font-size: 18px; color: #3c4043;">My Habits</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input id="hIn" placeholder="Start a new habit..." style="margin: 0; flex: 1;">
+            <button onclick="addH()" style="width: 80px; margin: 0; padding: 10px;">Add</button>
         </div>
-        <hr>
-        <h3>My Habits</h3>
-        <div style="display: flex; gap: 10px;">
-            <input id="hIn" placeholder="New habit name...">
-            <button onclick="addH()" style="width: 80px; margin-top:10px;">Add</button>
-        </div>
-        <ul id="list"></ul>
-        <button onclick="localStorage.clear(); window.location.href='/'" class="delete-btn">Logout</button>
+        
+        <ul id="list" style="padding-left: 0;"></ul>
+
+        <button onclick="logout()" class="delete-btn" style="margin-top: 30px; background-color: #5f6368;">Logout</button>
     </div>
 
     <script>
         const token = localStorage.getItem("token");
         const myName = localStorage.getItem("username");
+        
         if(!token || !myName) window.location.href = "/";
+
+        function toggleSearchBar() {
+            const container = document.getElementById('searchContainer');
+            const input = document.getElementById('sIn');
+            if (container.style.display === 'block') {
+                container.style.display = 'none';
+            } else {
+                container.style.display = 'block';
+                input.focus();
+            }
+        }
 
         function doSearch() {
             const user = document.getElementById('sIn').value.trim();
@@ -76,11 +173,20 @@
         }
 
         function deleteH(id) {
-            fetch("/api/habits/"+id, {method: "DELETE", headers: {"Authorization": "Bearer "+token}}).then(() => load());
+            if(confirm("Delete this habit?")) {
+                fetch("/api/habits/"+id, {method: "DELETE", headers: {"Authorization": "Bearer "+token}}).then(() => load());
+            }
+        }
+
+        function logout() {
+            localStorage.clear(); 
+            window.location.href = '/';
         }
 
         function load() {
             document.getElementById("dispUser").innerText = myName;
+            
+            // Fetch Profile Info
             fetch("/api/user_info/"+myName, {headers: {"Authorization": "Bearer "+token}})
             .then(res => res.json()).then(data => {
                 document.getElementById("privacyToggle").checked = data.is_private;
@@ -90,6 +196,7 @@
                 document.getElementById("fwingL").href = `/user/${myName}/following`;
             });
 
+            // Fetch Habits
             fetch("/api/habits", {headers: {"Authorization": "Bearer "+token}})
             .then(res => res.json()).then(data => {
                 const l = document.getElementById("list");
@@ -97,16 +204,23 @@
                 data.forEach(h => {
                     let li = document.createElement("li");
                     li.innerHTML = `
-                        <span style="text-decoration: ${h.completed ? 'line-through' : 'none'}">${h.name}</span>
-                        <div class="item-actions">
-                            <button onclick="toggleH(${h.id})">Toggle</button>
-                            <button class="delete-btn" onclick="deleteH(${h.id})">Delete</button>
+                        <div class="habit-item">
+                            <span style="text-decoration: ${h.completed ? 'line-through' : 'none'}; color: ${h.completed ? '#9aa0a6' : '#3c4043'}">
+                                ${h.name}
+                            </span>
+                            <div class="item-actions">
+                                <button onclick="toggleH(${h.id})" style="background: ${h.completed ? '#5f6368' : '#1a73e8'}">
+                                    ${h.completed ? 'Undo' : 'Done'}
+                                </button>
+                                <button class="delete-btn" onclick="deleteH(${h.id})" style="padding: 5px 10px;">×</button>
+                            </div>
                         </div>
                     `;
                     l.appendChild(li);
                 });
             });
         }
+
         window.onload = load;
     </script>
 </body>
