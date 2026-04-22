@@ -1,33 +1,160 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Login</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='animation.css') }}">
 </head>
+
 <body>
+
+    <!-- Background -->
+    <div class="background">
+        <canvas id="bubbleCanvas"></canvas>
+    </div>
+
+    <!-- Login Box -->
     <div class="container">
         <h2>Habit Tracker</h2>
+
         <input id="un" placeholder="Username">
         <input id="pw" type="password" placeholder="Password">
+
         <button onclick="login()">Login</button>
-        <p id="err" style="color: red;"></p>
+
+        <p id="err"></p>
+
         <a href="/signup_page" class="link-btn">Create an account</a>
     </div>
-    <script>
-        function login() {
-            const user = document.getElementById('un').value;
-            fetch("/api/login", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({username: user, password: document.getElementById('pw').value})
-            }).then(res => res.json()).then(data => {
-                if(data.token) {
-                    localStorage.setItem("token", data.token);
-                    localStorage.setItem("username", user);
-                    window.location.href = "/dashboard";
-                } else { document.getElementById('err').innerText = data.message; }
-            });
+
+<script>
+const canvas = document.getElementById("bubbleCanvas");
+const ctx = canvas.getContext("2d");
+
+let bubbles = [];
+const bubbleCount = 70;
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+class Bubble {
+    constructor(data = null) {
+        if (data) {
+            Object.assign(this, data);
+        } else {
+            this.reset();
         }
-    </script>
+    }
+
+    reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.radius = Math.random() * 18 + 6;
+        this.vx = (Math.random() - 0.5) * 0.25;
+        this.vy = (Math.random() - 0.5) * 0.25;
+        this.opacity = Math.random() * 0.3 + 0.2;
+        this.changeTimer = Math.random() * 140 + 80;
+        this.tx = (Math.random() - 0.5) * 0.5;
+        this.ty = (Math.random() - 0.5) * 0.5;
+
+        const colors = [
+            [80, 160, 255],
+            [120, 140, 255],
+            [100, 180, 220]
+        ];
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    update() {
+        this.changeTimer--;
+        if (this.changeTimer <= 0) {
+            this.tx = (Math.random() - 0.5) * 0.5;
+            this.ty = (Math.random() - 0.5) * 0.5;
+            this.changeTimer = Math.random() * 180 + 100;
+        }
+        this.vx += (this.tx - this.vx) * 0.02;
+        this.vy += (this.ty - this.vy) * 0.02;
+        this.vy -= 0.002;
+        this.vx *= 0.995;
+        this.vy *= 0.995;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < -this.radius) this.x = canvas.width + this.radius;
+        if (this.x > canvas.width + this.radius) this.x = -this.radius;
+        if (this.y < -this.radius) this.y = canvas.height + this.radius;
+        if (this.y > canvas.height + this.radius) this.y = -this.radius;
+    }
+
+    draw() {
+        const [r, g, b] = this.color;
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+        gradient.addColorStop(0, `rgba(${r},${g},${b},${this.opacity})`);
+        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = `rgba(${r},${g},${b},0.5)`;
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    }
+}
+
+function init() {
+    const saved = localStorage.getItem("bubbleState");
+    if (saved) {
+        const parsed = JSON.parse(saved);
+        bubbles = parsed.map(b => new Bubble(b));
+    } else {
+        for (let i = 0; i < bubbleCount; i++) {
+            bubbles.push(new Bubble());
+        }
+    }
+}
+
+function animate() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    bubbles.forEach(b => {
+        b.update();
+        b.draw();
+    });
+
+    // Save state to localstorage for signup.html to pick up
+    localStorage.setItem("bubbleState", JSON.stringify(bubbles));
+
+    requestAnimationFrame(animate);
+}
+
+init();
+animate();
+
+function login() {
+    const user = document.getElementById('un').value;
+    fetch("/api/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            username: user,
+            password: document.getElementById('pw').value
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.token) {
+            localStorage.setItem("token", data.token);
+            localStorage.setItem("username", user);
+            window.location.href = "/dashboard";
+        } else {
+            document.getElementById('err').innerText = data.message;
+        }
+    });
+}
+</script>
 </body>
 </html>
